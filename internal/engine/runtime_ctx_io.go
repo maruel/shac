@@ -15,7 +15,6 @@
 package engine
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -33,7 +32,7 @@ import (
 // Use POSIX style relative path. "..", "\" and absolute paths are denied.
 //
 // Make sure to update //doc/stdlib.star whenever this function is modified.
-func ctxIoReadFile(ctx context.Context, s *shacState, name string, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func ctxIoReadFile(th *starlark.Thread, name string, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var argfilepath starlark.String
 	var argsize starlark.Int
 	if err := starlark.UnpackArgs(name, args, kwargs,
@@ -46,6 +45,7 @@ func ctxIoReadFile(ctx context.Context, s *shacState, name string, args starlark
 	if !ok {
 		return nil, fmt.Errorf("for parameter \"size\": %s is an invalid size", argsize)
 	}
+<<<<<<< HEAD
 	dst := string(argfilepath)
 	if !filepath.IsAbs(dst) {
 		var err error
@@ -53,6 +53,12 @@ func ctxIoReadFile(ctx context.Context, s *shacState, name string, args starlark
 		if err != nil {
 			return nil, fmt.Errorf("for parameter \"filepath\": %s %w", argfilepath, err)
 		}
+=======
+	s := getShacState(th)
+	dst, err := absPath(string(argfilepath), filepath.Join(s.root, s.subdir))
+	if err != nil {
+		return nil, fmt.Errorf("for parameter \"filepath\": %s %w", argfilepath, err)
+>>>>>>> 6e8b1af ([engine] Use starlark.Thread.Local instead of context.Context)
 	}
 	b, err := readFileImpl(dst, size)
 	if err != nil {
@@ -70,10 +76,11 @@ func ctxIoReadFile(ctx context.Context, s *shacState, name string, args starlark
 // ctxIoTempdir implements native function ctx.io.tempdir().
 //
 // Make sure to update //doc/stdlib.star whenever this function is modified.
-func ctxIoTempdir(ctx context.Context, s *shacState, name string, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func ctxIoTempdir(th *starlark.Thread, name string, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	if err := starlark.UnpackArgs(name, args, kwargs); err != nil {
 		return nil, err
 	}
+	s := getShacState(th)
 	t, err := s.newTempDir()
 	return starlark.String(t), err
 }

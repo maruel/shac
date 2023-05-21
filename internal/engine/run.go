@@ -466,31 +466,25 @@ type shacState struct {
 	tmpdirIndex int
 }
 
-// ctxShacState pulls out *runState from the context.
-//
-// Panics if not there.
-func ctxShacState(ctx context.Context) *shacState {
-	return ctx.Value(&shacStateCtxKey).(*shacState)
-}
-
-var shacStateCtxKey = "shac.shacState"
-
 // parseAndBuffer parses and run a single shac.star file, then buffer all its checks.
 func (s *shacState) parseAndBuffer(ctx context.Context, ch chan<- func() error) error {
-	ctx = context.WithValue(ctx, &shacStateCtxKey, s)
-	if err := s.parse(ctx); err != nil {
+	locals := map[string]any{
+		"context":   ctx,
+		"shacState": s,
+	}
+	if err := s.parse(ctx, locals); err != nil {
 		return err
 	}
 	if len(s.checks) == 0 && !s.printCalled {
 		return errors.New("did you forget to call shac.register_check?")
 	}
 	// Last phase where checks are called.
-	s.bufferAllChecks(ctx, ch)
+	s.bufferAllChecks(ctx, locals, ch)
 	return nil
 }
 
 // parse parses a single shac.star file.
-func (s *shacState) parse(ctx context.Context) error {
+func (s *shacState) parse(ctx context.Context, locals map[string]any) error {
 	pi := func(th *starlark.Thread, msg string) {
 		// Detect if print() was called while loading. Calling either print() or
 		// shac.register_check() makes a shac.star valid.
@@ -501,7 +495,7 @@ func (s *shacState) parse(ctx context.Context) error {
 		s.r.Print(ctx, "", pos.Filename(), int(pos.Line), msg)
 	}
 	p := path.Join(s.subdir, s.main)
-	if _, err := s.env.load(ctx, sourceKey{orig: p, pkg: "__main__", relpath: p}, pi); err != nil {
+	if _, err := s.env.load(locals, sourceKey{orig: p, pkg: "__main__", relpath: p}, pi); err != nil {
 		var evalErr *starlark.EvalError
 		if errors.As(err, &evalErr) {
 			return &evalError{evalErr}
@@ -513,7 +507,7 @@ func (s *shacState) parse(ctx context.Context) error {
 }
 
 // bufferAllChecks adds all the checks to the channel for execution.
-func (s *shacState) bufferAllChecks(ctx context.Context, ch chan<- func() error) {
+func (s *shacState) bufferAllChecks(ctx context.Context, locals map[string]any, ch chan<- func() error) {
 	args := starlark.Tuple{getCtx(path.Join(s.root, s.subdir))}
 	args.Freeze()
 	for i := range s.checks {
@@ -527,7 +521,7 @@ func (s *shacState) bufferAllChecks(ctx context.Context, ch chan<- func() error)
 				pos := th.CallFrame(1).Pos
 				s.r.Print(ctx, s.checks[i].name, pos.Filename(), int(pos.Line), msg)
 			}
-			err := s.checks[i].call(ctx, s.env, args, pi)
+			err := s.checks[i].call(locals, s.env, args, pi)
 			if err != nil && ctx.Err() != nil {
 				// Don't report the check completion if the context was
 				// canceled. The error was probably caused by the context being
@@ -574,22 +568,12 @@ type registeredCheck struct {
 	subprocesses []*subprocess
 }
 
-var checkCtxKey = "shac.check"
-
-// ctxCheck pulls out *registeredCheck from the context.
-//
-// Returns nil when not run inside a check.
-func ctxCheck(ctx context.Context) *registeredCheck {
-	c, _ := ctx.Value(&checkCtxKey).(*registeredCheck)
-	return c
-}
-
 // call calls the check callback and returns an error if an abnormal error happened.
 //
 // A "normal" error will still have this function return nil.
-func (c *registeredCheck) call(ctx context.Context, env *starlarkEnv, args starlark.Tuple, pi printImpl) error {
-	ctx = context.WithValue(ctx, &checkCtxKey, c)
-	th := env.thread(ctx, c.name, pi)
+func (c *registeredCheck) call(locals map[string]any, env *starlarkEnv, args starlark.Tuple, pi printImpl) error {
+	th := env.thread(locals, c.name, pi)
+	th.SetLocal("check", c)
 	if r, err := starlark.Call(th, c.impl, args, nil); err != nil {
 		if c.failErr != nil {
 			// fail() was called, return this error since this is an abnormal failure.
@@ -615,6 +599,24 @@ func (c *registeredCheck) call(ctx context.Context, env *starlarkEnv, args starl
 		}
 	}
 	return err
+}
+
+// getShacState pulls out *shacState from the starlark.Thread local.
+//
+// Panics if not there.
+func getShacState(th *starlark.Thread) *shacState {
+	return th.Local("shacState").(*shacState)
+}
+
+// getContext returns the context.Context given a starlark thread.
+func getContext(t *starlark.Thread) context.Context {
+	return t.Local("context").(context.Context)
+}
+
+// getCheck returns the *check given a starlark thread.
+func getCheck(t *starlark.Thread) *registeredCheck {
+	c, _ := t.Local("check").(*registeredCheck)
+	return c
 }
 
 func parseVersion(s string) []int {

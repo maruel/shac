@@ -15,7 +15,6 @@
 package engine
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -28,7 +27,7 @@ import (
 	"go.starlark.net/starlark"
 )
 
-func ctxEmitFinding(ctx context.Context, s *shacState, name string, args starlark.Tuple, kwargs []starlark.Tuple) error {
+func ctxEmitAnnotation(th *starlark.Thread, name string, args starlark.Tuple, kwargs []starlark.Tuple) error {
 	var arglevel starlark.String
 	var argmessage starlark.String
 	var argfilepath starlark.String
@@ -113,7 +112,7 @@ func ctxEmitFinding(ctx context.Context, s *shacState, name string, args starlar
 		}
 	}
 
-	c := ctxCheck(ctx)
+	c := getCheck(th)
 	message := string(argmessage)
 	if len(message) == 0 {
 		if c.formatter && file != "" && level == Error && len(replacements) == 1 {
@@ -130,6 +129,8 @@ func ctxEmitFinding(ctx context.Context, s *shacState, name string, args starlar
 	if c.highestLevel == "" || level == Error || (level == Warning && c.highestLevel != Error) {
 		c.highestLevel = level
 	}
+	ctx := getContext(th)
+	s := getShacState(th)
 	root := ""
 	if file != "" {
 		root = filepath.Join(s.root, s.subdir)
@@ -148,7 +149,7 @@ func ctxEmitFinding(ctx context.Context, s *shacState, name string, args starlar
 	return nil
 }
 
-func ctxEmitArtifact(ctx context.Context, s *shacState, name string, args starlark.Tuple, kwargs []starlark.Tuple) error {
+func ctxEmitArtifact(th *starlark.Thread, name string, args starlark.Tuple, kwargs []starlark.Tuple) error {
 	var argfilepath starlark.String
 	var argcontent starlark.Value = starlark.None
 	if err := starlark.UnpackArgs(name, args, kwargs,
@@ -157,6 +158,7 @@ func ctxEmitArtifact(ctx context.Context, s *shacState, name string, args starla
 	); err != nil {
 		return err
 	}
+	s := getShacState(th)
 	f := string(argfilepath)
 	var content []byte
 	root := ""
@@ -185,7 +187,8 @@ func ctxEmitArtifact(ctx context.Context, s *shacState, name string, args starla
 	default:
 		return fmt.Errorf("for parameter \"content\": got %s, want str or bytes", argcontent.Type())
 	}
-	c := ctxCheck(ctx)
+	c := getCheck(th)
+	ctx := getContext(th)
 	if err := s.r.EmitArtifact(ctx, c.name, root, f, content); err != nil {
 		return fmt.Errorf("failed to emit: %w", err)
 	}
