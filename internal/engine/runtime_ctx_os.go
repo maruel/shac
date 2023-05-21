@@ -356,12 +356,19 @@ func ctxOsExec(ctx context.Context, s *shacState, name string, args starlark.Tup
 		}
 	}
 
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	cmd := s.sandbox.Command(ctx, config)
 
 	cmd.Stdin = stdin
 	// TODO(olivernewman): Also handle commands that may output non-utf-8 bytes.
-	cmd.Stdout = stdout
-	cmd.Stderr = stderr
+	// Limits output to 10Mib. If it needs more, a file should probably be used.
+	// If there is a use case, it's fine to increase.
+	const cap = 10 * 1024 * 1024
+	lstdout := limitedBuffer{b: stdout, cap: cap, cancel: cancel}
+	lstderr := limitedBuffer{b: stderr, cap: cap, cancel: cancel}
+	cmd.Stdout = &lstdout
+	cmd.Stderr = &lstderr
 
 	err = execsupport.Start(cmd)
 	if err != nil {
