@@ -77,13 +77,12 @@ func fail(th *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs
 		Message: msg,
 		Stack:   th.CallStack(),
 	}
-	ctx := getContext(th)
-	if c := ctxCheck(ctx); c != nil {
+	if c := getCheck(th); c != nil {
 		// Running inside a check, annotate it.
 		c.failErr = failErr
 	} else {
 		// Save the error in the shacState object since we are in the first phase.
-		s := ctxShacState(ctx)
+		s := getShacState(th)
 		s.failErr = failErr
 	}
 	return nil, errors.New(fn.Name() + ": " + msg)
@@ -94,7 +93,7 @@ func toValue(name string, d starlark.StringDict) starlark.Value {
 	return starlarkstruct.FromStringDict(starlark.String(name), d)
 }
 
-type builtin func(ctx context.Context, s *shacState, name string, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error)
+type builtin func(th *starlark.Thread, name string, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error)
 type boundBuiltin func(ctx context.Context, s *shacState, name string, self starlark.Value, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error)
 
 // newBuiltin registers a go function as a Starlark builtin.
@@ -107,6 +106,23 @@ func newBuiltin(name string, impl builtin) *starlark.Builtin {
 			return impl(ctx, s, name, args, kwargs)
 		})
 	})
+	/*
+		wrapper := func(th *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+			val, err := impl(th, name, args, kwargs)
+			// starlark.UnpackArgs already adds the function name prefix to errors
+			// it returns, so make sure not to duplicate the prefix if it's already
+			// there.
+			if err != nil && !strings.HasPrefix(err.Error(), name+": ") {
+				err = fmt.Errorf("%s: %w", name, err)
+			}
+			if val != nil {
+				// All values returned by builtins are immutable. This is not a hard
+				// requirement, and can be relaxed if there's a use case for mutable
+				// return values, but it's still a sensible default.
+				val.Freeze()
+			}
+			return val, err
+	*/
 }
 
 // newBoundBuiltin registers a go function as a Starlark builtin that's bound to
@@ -141,10 +157,10 @@ func builtinWrapper(th *starlark.Thread, name string, f func(ctx context.Context
 	return val, err
 }
 
-func newBuiltinNone(name string, f func(ctx context.Context, s *shacState, name string, args starlark.Tuple, kwargs []starlark.Tuple) error) *starlark.Builtin {
+func newBuiltinNone(name string, f func(th *starlark.Thread, name string, args starlark.Tuple, kwargs []starlark.Tuple) error) *starlark.Builtin {
 	return newBuiltin(
 		name,
-		func(ctx context.Context, s *shacState, name string, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-			return starlark.None, f(ctx, s, name, args, kwargs)
+		func(th *starlark.Thread, name string, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+			return starlark.None, f(th, name, args, kwargs)
 		})
 }

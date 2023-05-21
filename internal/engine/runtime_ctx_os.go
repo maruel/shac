@@ -154,7 +154,7 @@ var subprocessWaitBuiltin = newBoundBuiltin("wait", func(ctx context.Context, s 
 // ctxOsExec implements the native function ctx.os.exec().
 //
 // Make sure to update //doc/stdlib.star whenever this function is modified.
-func ctxOsExec(ctx context.Context, s *shacState, name string, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func ctxOsExec(th *starlark.Thread, name string, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var argcmd starlark.Sequence
 	var argcwd starlark.String
 	var argenv = starlark.NewDict(0)
@@ -267,6 +267,7 @@ func ctxOsExec(ctx context.Context, s *shacState, name string, args starlark.Tup
 		return nil, fmt.Errorf("for parameter \"stdin\": got %s, want str or bytes", argstdin.Type())
 	}
 
+	s := getShacState(th)
 	cwd := filepath.Join(s.root, s.subdir)
 	if s := string(argcwd); s != "" {
 		cwd, err = absPath(s, cwd)
@@ -356,7 +357,7 @@ func ctxOsExec(ctx context.Context, s *shacState, name string, args starlark.Tup
 		}
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(getContext(th))
 	defer cancel()
 	cmd := s.sandbox.Command(ctx, config)
 

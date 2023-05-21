@@ -15,7 +15,6 @@
 package engine
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -26,7 +25,7 @@ import (
 // shacCheck implements native function shac.check().
 //
 // Make sure to update //doc/stdlib.star whenever this function is modified.
-func shacCheck(ctx context.Context, s *shacState, name string, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func shacCheck(th *starlark.Thread, name string, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var argimpl *starlark.Function
 	var argname starlark.String
 	var argformatter starlark.Bool

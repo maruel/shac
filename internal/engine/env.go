@@ -15,7 +15,6 @@
 package engine
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -123,36 +122,33 @@ type starlarkEnv struct {
 // thread returns a new starlark thread.
 //
 // load() statement is not allowed.
-func (e *starlarkEnv) thread(ctx context.Context, name string, pi printImpl) *starlark.Thread {
+func (s *starlarkEnv) thread(locals map[string]any, name string, pi printImpl) *starlark.Thread {
 	t := &starlark.Thread{Name: name, Print: pi}
-	t.SetLocal("shac.context", ctx)
+	for k, v := range locals {
+		t.SetLocal(k, v)
+	}
 	return t
-}
-
-// getContext returns the context.Context given a starlark thread.
-func getContext(t *starlark.Thread) context.Context {
-	return t.Local("shac.context").(context.Context)
 }
 
 // load loads a starlark source file. It is safe to call it concurrently.
 //
 // A thread will be implicitly created.
-func (e *starlarkEnv) load(ctx context.Context, sk sourceKey, pi printImpl) (starlark.StringDict, error) {
+func (s *starlarkEnv) load(locals map[string]any, sk sourceKey, pi printImpl) (starlark.StringDict, error) {
 	// We are the root thread. Start a thread implicitly.
-	t := e.thread(ctx, sk.String(), pi)
+	t := s.thread(locals, sk.String(), pi)
 	t.Load = func(th *starlark.Thread, str string) (starlark.StringDict, error) {
 		skn, err := parseSourceKey(th.Local("shac.pkg").(sourceKey), str)
 		if err != nil {
 			return nil, err
 		}
-		return e.loadInner(th, skn)
+		return s.loadInner(th, skn, pi)
 	}
 	t.SetLocal("shac.top", sk)
 	t.SetLocal("shac.pkg", sk)
-	return e.loadInner(t, sk)
+	return s.loadInner(t, sk, pi)
 }
 
-func (e *starlarkEnv) loadInner(th *starlark.Thread, sk sourceKey) (starlark.StringDict, error) {
+func (s *starlarkEnv) loadInner(th *starlark.Thread, sk sourceKey, pi printImpl) (starlark.StringDict, error) {
 	key := sk.String()
 	e.mu.Lock()
 	if source, ok := e.sources[key]; ok {

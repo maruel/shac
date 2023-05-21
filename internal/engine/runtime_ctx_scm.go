@@ -95,10 +95,12 @@ func (f *fileImpl) getMetadata() starlark.Value {
 		// Make sure to update //doc/stdlib.star whenever this function is modified.
 		f.metadata = toValue("file", starlark.StringDict{
 			"action": starlark.String(f.a),
-			"new_lines": newBuiltin("new_lines", func(ctx context.Context, s *shacState, name string, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+			"new_lines": newBuiltin("new_lines", func(th *starlark.Thread, name string, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 				if err := starlark.UnpackArgs(name, args, kwargs); err != nil {
 					return nil, err
 				}
+				ctx := getContext(th)
+				s := getShacState(th)
 				f.mu.Lock()
 				if f.newLines == nil && f.err == nil {
 					f.newLines, f.err = s.scm.newLines(ctx, f)
@@ -728,13 +730,15 @@ func (r *rawTree) newLines(ctx context.Context, f file) (starlark.Value, error) 
 // It returns a dictionary.
 //
 // Make sure to update //doc/stdlib.star whenever this function is modified.
-func ctxScmAffectedFiles(ctx context.Context, s *shacState, name string, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func ctxScmAffectedFiles(th *starlark.Thread, name string, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var argincludeDeleted starlark.Bool
 	if err := starlark.UnpackArgs(name, args, kwargs,
 		"include_deleted?", &argincludeDeleted,
 	); err != nil {
 		return nil, err
 	}
+	s := getShacState(th)
+	ctx := getContext(th)
 	files, err := s.scm.affectedFiles(ctx, bool(argincludeDeleted))
 	if err != nil {
 		return nil, err
@@ -747,13 +751,15 @@ func ctxScmAffectedFiles(ctx context.Context, s *shacState, name string, args st
 // It returns a dictionary.
 //
 // Make sure to update //doc/stdlib.star whenever this function is modified.
-func ctxScmAllFiles(ctx context.Context, s *shacState, name string, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func ctxScmAllFiles(th *starlark.Thread, name string, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var argincludeDeleted starlark.Bool
 	if err := starlark.UnpackArgs(name, args, kwargs,
 		"include_deleted?", &argincludeDeleted,
 	); err != nil {
 		return nil, err
 	}
+	s := getShacState(th)
+	ctx := getContext(th)
 	files, err := s.scm.allFiles(ctx, bool(argincludeDeleted))
 	if err != nil {
 		return nil, err

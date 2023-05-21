@@ -15,7 +15,6 @@
 package engine
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"runtime/debug"
@@ -47,7 +46,7 @@ func getShac() starlark.StringDict {
 // shacRegisterCheck implements native function shac.register_check().
 //
 // Make sure to update //doc/stdlib.star whenever this function is modified.
-func shacRegisterCheck(ctx context.Context, s *shacState, name string, args starlark.Tuple, kwargs []starlark.Tuple) error {
+func shacRegisterCheck(th *starlark.Thread, name string, args starlark.Tuple, kwargs []starlark.Tuple) error {
 	var argcheck starlark.Value
 	if err := starlark.UnpackArgs(name, args, kwargs,
 		"check", &argcheck); err != nil {
@@ -67,6 +66,7 @@ func shacRegisterCheck(ctx context.Context, s *shacState, name string, args star
 	default:
 		return fmt.Errorf("\"check\" must be a function or shac.check object, got %s", x.Type())
 	}
+	s := getShacState(th)
 	// We may want to optimize this if we register hundreds of checks.
 	for i := range s.checks {
 		if s.checks[i].name == c.name {
