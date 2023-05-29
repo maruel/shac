@@ -13,6 +13,26 @@
 # limitations under the License.
 
 
+def _ba(ctx, version = "v0.0.4"):
+  """Runs ba (bench against).
+
+  Args:
+    ctx: A ctx instance.
+    version: ba version to install. Defaults to a recent version, that will
+      be rolled from time to time.
+  """
+  go_files = [f for f in ctx.scm.affected_files() if f.endswith(".go")]
+  if not go_files:
+    return
+
+  exe = _go_install(ctx, "github.com/maruel/pat/cmd/ba", version)
+  res = ctx.os.exec([exe])
+  ctx.emit.annotation( level="notify", message=res.stdout)
+
+
+ba = shac.check(lambda ctx: _ba(ctx), name="ba")
+
+
 def _gofmt(ctx, simplify = True):
   """Runs gofmt on a Go code base.
 
@@ -53,6 +73,10 @@ def _gosec(ctx, version = "v2.15.0", level = "error"):
       be rolled from time to time.
     level: level at which issues should be emitted.
   """
+  go_files = [f for f in ctx.scm.affected_files() if f.endswith(".go")]
+  if not go_files:
+    return
+
   exe = _go_install(ctx, "github.com/securego/gosec/v2/cmd/gosec", version)
   res = ctx.os.exec([exe, "-fmt=json", "-quiet", "-exclude=G304", "-exclude-dir=.tools", "./..."], raise_on_failure = False).wait()
   if res.retcode:
@@ -83,6 +107,10 @@ def _ineffassign(ctx, version = "v0.0.0-20230107090616-13ace0543b28"):
     version: ineffassign version to install. Defaults to a recent version, that
       will be rolled from time to time.
   """
+  go_files = [f for f in ctx.scm.affected_files() if f.endswith(".go")]
+  if not go_files:
+    return
+
   exe = _go_install(ctx, "github.com/gordonklaus/ineffassign", version)
   res = ctx.os.exec(
     [exe, "./..."],
@@ -118,6 +146,10 @@ def _staticcheck(ctx, version = "v0.4.3"):
     version: staticcheck version to install. Defaults to a recent version, that
     will be rolled from time to time.
   """
+  go_files = [f for f in ctx.scm.affected_files() if f.endswith(".go")]
+  if not go_files:
+    return
+
   exe = _go_install(ctx, "honnef.co/go/tools/cmd/staticcheck", version)
   env = _go_env(ctx, "staticcheck")
   env["STATICCHECK_CACHE"] = env["GOCACHE"]
@@ -164,6 +196,10 @@ def _shadow(ctx, version = "v0.7.0"):
     version: shadow version to install. Defaults to a recent version, that will
       be rolled from time to time.
   """
+  go_files = [f for f in ctx.scm.affected_files() if f.endswith(".go")]
+  if not go_files:
+    return
+
   exe = _go_install(ctx, "golang.org/x/tools/go/analysis/passes/shadow/cmd/shadow", version)
   res = ctx.os.exec(
     [

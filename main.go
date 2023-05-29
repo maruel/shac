@@ -33,10 +33,11 @@ func main() {
 			_, _ = os.Stderr.WriteString(stackerr.Backtrace())
 		}
 		// If a check failed and stderr is a terminal, appropriate information
-		// should have already been emitted by the reporter. If stderr is not a
-		// terminal then it may still be useful to print the "check failed"
-		// error message since the reporter output may not show up in the same
-		// stream as stderr.
+		// should have already been emitted by the reporter.
+		//
+		// If stderr is not a terminal then it may still be useful to print the
+		// "check failed" error message since the reporter output may not show up
+		// in the same stream as stderr.
 		if !errors.Is(err, engine.ErrCheckFailed) || !isatty.IsTerminal(os.Stderr.Fd()) {
 			_, _ = fmt.Fprintf(os.Stderr, "shac: %s\n", err)
 		}
